@@ -1,0 +1,36 @@
+rule dns_traffic_greater_than_500_bytes {
+  meta:
+    description = "Looking at DNS packets > 500 bytes - indicator of potential data exfil"
+    severity = "LOW"
+    others = "based on dig www.google.com +stats output"
+
+  events:
+    $e.network.direction = "OUTBOUND"
+    $e.metadata.product_name = "AWS VPC FLOW"
+    $e.network.received_bytes > 500
+$e.target.port = "53"
+    $target_ip = $e.target.ip 
+
+/*
+    $prevalence.graph.metadata.entity_type = "IP_ADDRESS"
+    $prevalence.graph.metadata.source_type = "DERIVED_CONTEXT"
+    $prevalence.graph.entity.artifact.prevalence.day_count = 10
+    $prevalence.graph.entity.artifact.prevalence.rolling_max <= 3
+    $prevalence.graph.entity.artifact.prevalence.rolling_max > 0
+    $prevalence.graph.entity.artifact.ip = $target_ip
+*/
+  match:
+    $target_ip over 10m // without prevalence
+    //$target_ip over 24h
+    
+
+  outcome:
+    $host = array($e.principal.ip)
+    $dns_question_type = array($e.network.dns.questions.type)
+    $dns_question_name = array($e.network.dns.questions.name)
+    $packets_out = count($e.network.sent_packets)
+    $geo_ip_location = array($e.target.ip_geo_artifact.location.country_or_region)
+
+  condition:
+    $e //or $prevalence
+}

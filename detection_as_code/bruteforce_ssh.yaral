@@ -1,0 +1,22 @@
+rule bruteforce_ssh {
+    meta:
+        description = "Detects >10 inbound connections on port 22 over a 10min period "
+        severity = "LOW"
+
+    events:
+        $e.target.port = 22
+        $e.metadata.product_name = "AWS VPC FLOW"
+        $e.network.direction = "INBOUND"
+        $host = $e.target.asset.hostname
+
+    match:
+        $host over 10m
+
+    outcome:
+        $destination_ip = count($e.target.ip)
+        $source_ip = array($e.src.ip)
+        $souce_country = array($e.principal.ip_geo_artifact.location.country_or_region)
+
+    condition:
+        $e and $destination_ip > 10
+}
