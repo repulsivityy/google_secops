@@ -8,7 +8,7 @@ rule dns_traffic_greater_than_500_bytes {
     $e.network.direction = "OUTBOUND"
     $e.metadata.product_name = "AWS VPC FLOW"
     $e.network.received_bytes > 500
-$e.target.port = "53"
+    $e.target.port = "53"
     $target_ip = $e.target.ip 
 
 /*
