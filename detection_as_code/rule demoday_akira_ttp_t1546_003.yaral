@@ -1,0 +1,32 @@
+rule demoday_akira_ttp_t1546_003 {
+  // This rule matches single events. Rules can also match multiple events within
+  // some time window. For details about how to write a multi-event rule, see
+  // https://cloud.google.com/chronicle/docs/detection/yara-l-2-0-overview#single-event_versus_multi-event
+
+  meta:
+
+    author = "dominicchua@"
+    description = "SG Demo Day Akira TTP Hunting package based on T1546.003 - align with atomic red test"
+    severity = "Medium"
+
+  events:
+    (
+        $e.metadata.event_type = "PROCESS_LAUNCH" or 
+        $e.metadata.event_type = "PROCESS_OPEN"
+    )
+    re.regex($e.principal.process.file.full_path, `\\powershell\.exe$`) nocase
+    (
+        re.regex($e.target.process.file.full_path, `\\mofcomp\.exe$`) nocase or
+        re.regex($e.target.process.command_line, `\\mofcomp\.exe$`) nocase
+    )
+    $hostname = $e.principal.hostname
+
+  outcome:
+    // For a multi-event rule an aggregation function is required
+    // e.g., risk_score = max(0)
+    // See https://cloud.google.com/chronicle/docs/detection/yara-l-2-0-overview#outcome_conditionals_example_rule
+    $risk_score = 40
+
+  condition:
+    $e
+}
