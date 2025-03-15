@@ -1,0 +1,38 @@
+rule demoday_akira {
+    meta:
+        author = "dominicchua@"
+        description = "SG Demo Day Akira TTP Hunting package"
+        // inspired from sigma rules from 89f5f29cf6b5bcfc85b506fb916da66cb7fd398cf6011d58e9409c7813e1a6f3
+        severity = "Medium"
+    events:
+    // potential use of WMI for lateral movement
+        (
+            $e.metadata.event_type = "PROCESS_LAUNCH" or 
+            $e.metadata.event_type = "PROCESS_OPEN"
+        )
+        re.regex($e.principal.process.file.full_path, `\\powershell\.exe$`) nocase
+        (
+            re.regex($e.target.process.file.full_path, `\\WmiPrvSE\.exe$`) nocase or //wmi exe 
+            re.regex($e.target.process.file.full_path, `\\Invoke-WMIMethod\$`) nocase //powershell
+        )
+        $e_hostname = $e.principal.hostname
+
+        $a.metadata.event_type = $e.metadata.event_type 
+        re.regex($a.target.process.command_line, `\\systeminfo\$`) nocase or
+        re.regex($a.target.process.command_line, `\\netuser\$`) nocase or
+        re.regex($a.target.process.command_line, `\\netgroup\$`) nocase or 
+        re.regex($a.target.process.command_line, `\\Get-ADUser\$`) nocase
+        $a_hostname = $a.principal.hostname
+
+        // $e -> $a within a 10m timeframe (move laterally, then discovery on new device)
+        $e.metadata.event_timestamp.seconds - $a.metadata.event_timestamp.seconds <= 600
+
+    match: 
+        $e_hostname, $a_hostname over 5m
+    
+    outcome:
+        $risk_score = 60
+
+    condition:
+        $e and $a
+}
