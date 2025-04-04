@@ -1,0 +1,40 @@
+rule crazyhunter_ransomware {
+  meta:
+    author = "dominicchua@"
+    severity = "High"
+    description = "Based on bdfc66266a2a19fc3d5dccef3eefe4c0ee928ba5b7abad60bc320218b2082fea // https://labs.withsecure.com/publications/crazyhunter-ransomware"
+
+  events:
+    // Track Powershell spawning (PROCESS_LAUNCH or PROCESS_OPEN) potentially leading to execution of suspicious go executables
+    ($a.metadata.event_type = "PROCESS_LAUNCH" or
+     $a.metadata.event_type = "PROCESS_OPEN")
+    re.regex($a.principal.process.file.full_path, `\\powershell\.exe$`) nocase
+    (re.regex($a.target.process.file.full_path, `\\go\.exe$`) nocase or
+     re.regex($a.target.process.command_line, `\\go2\.exe$`) nocase or
+     re.regex($a.target.process.command_line, `\\go3\.exe$`) nocase)
+
+    // Track PowerShell downloading BG images (within the same or a related process)
+    ($b.metadata.event_type = "PROCESS_LAUNCH" or $b.metadata.event_type = "PROCESS_EXECUTION")
+    $b.principal.process.file.full_path = $a.principal.process.file.full_path
+    re.regex($b.target.process.command_line, `.*\.DownloadFile.*`) nocase
+    re.regex($b.target.process.command_line, `.*System\.Net\.WebClient.*`) nocase
+    re.regex($b.target.process.command_line, `.*https?://ncmep\.org/files/.*`) nocase
+
+    // Track dropped ransomnote (File Creation - assuming Chronicle normalizes Sysmon Event ID 11 to FILE_CREATION)
+    $c.metadata.event_type = "FILE_CREATION"  // Assuming Chronicle normalizes Sysmon Event ID 11 to FILE_CREATION
+    $c.target.file.full_path = /Decryption Instructions\.txt/ nocase
+
+#######
+There's some error here - need to resolve
+#######
+
+  match: 
+    $a.principal.hostname = $b.principal.hostname and
+    $b.principal.hostname = $c.principal.hostname over 10m
+
+  outcome:
+    risk_score = max(80)
+
+  condition:
+    ($a and $b) and $c
+}
