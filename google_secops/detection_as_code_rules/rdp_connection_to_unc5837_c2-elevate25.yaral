@@ -1,0 +1,49 @@
+/*
+ * Copyright 2025 Google LLC
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     https://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+rule rdp_connection_to_unc5837_c2_elevate25 {
+  meta:
+    author = "Detection Engineer"
+    description = "Detects RDP network connections to known command and control (C2) domains associated with the UNC5837 campaign."
+    rule_id = "mr_5a3c10f8-3d8e-4b1f-884a-92b6754e01cd"
+    rule_name = "RdpConnectionToUnc5837C2Elevate25"
+    tactic = "TA0011" // Command and Control
+    technique = "T1219" // Remote Services: Remote Desktop Protocol
+    type = "alert"
+    data_source = "network traffic logs, EDR, firewall logs"
+    severity = "Critical"
+    priority = "Critical"
+    reference = "https://www.virustotal.com/gui/collection/report--25-10015981"
+    reference_list_name = "unc5837_c2_domains"
+
+  events:
+    $e.metadata.event_type = "NETWORK_CONNECTION"
+    $e.network.ip_protocol = "TCP"
+    $e.target.port = 3389
+    $e.target.hostname in %unc5837_c2_domains
+
+  outcome:
+    $risk_score = 95
+    $principal_hostname = array_distinct($e.principal.hostname)
+    $principal_ip = array_distinct($e.principal.ip)
+    $principal_user_userid = array_distinct($e.principal.user.userid)
+    $target_hostname = array_distinct($e.target.hostname)
+    $target_ip = array_distinct($e.target.ip)
+    $source_process_command_line = array_distinct($e.principal.process.command_line)
+    $source_process_path = array_distinct($e.principal.process.file.full_path)
+
+  condition:
+    $e
+}
