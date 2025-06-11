@@ -1,0 +1,53 @@
+/*
+ * Copyright 2025 Google LLC
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     https://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+rule suspicious_file_creation_by_mstsc_elevate2025 {
+  meta:
+    author = "Google Cloud Security (Original: Google Threat Intelligence Group, Adapted by Cline)"
+    description = "Detects mstsc.exe creating files in locations or with names not typical of standard RDP temporary file activity. This could indicate malicious file drops via RDP drive redirection, a technique used by UNC5837."
+    rule_id = "mr_1e8b3c0a-6d4e-4f2a-9b0c-5e8d7c6b1a3e"
+    rule_name = "Suspicious File Creation by mstsc.exe"
+    tactic = "TA0005" 
+    technique = "T1105" 
+    type = "alert"
+    data_source = "microsoft sysmon, EDR (file creation events)"
+    severity = "Medium"
+    priority = "Medium"
+    reference = "https://www.virustotal.com/gui/collection/report--25-10015981"
+    assumption = "Assumes that typical benign mstsc.exe file writes to %APPDATA%/Local/Temp/_TSxxxx.tmp and %APPDATA%/Local/Microsoft/Terminal Server Client/ are filtered or have lower severity if not filterable directly in the rule."
+
+  events:
+    $file.metadata.event_type = "FILE_CREATION"
+    re.regex($file.principal.process.file.full_path, `\\mstsc\.exe$`) nocase
+    not (
+      re.regex($file.target.file.full_path, `\\Users\\[^\\]+\\AppData\\Local\\Temp\\_TS[A-Z0-9]{4}\\.tmp$`) nocase or
+      re.regex($file.target.file.full_path, `\\Users\\[^\\]+\\AppData\\Local\\Microsoft\\Terminal Server Client\\`) nocase
+    )
+
+  outcome:
+    $risk_score = 65
+    $principal_hostname = array_distinct($file.principal.hostname)
+    $principal_user_userid = array_distinct($file.principal.user.userid)
+    $actor_process_command_line = array_distinct($file.principal.process.command_line)
+    $actor_process_pid = array_distinct($file.principal.process.pid)
+    $actor_process_file_full_path = array_distinct($file.principal.process.file.full_path)
+    $target_file_path = array_distinct($file.target.file.full_path)
+    $target_file_sha256 = array_distinct($file.target.file.sha256)
+    $target_file_size = array_distinct($file.target.file.size)
+    $event_count = count_distinct($file.metadata.id)
+
+  condition:
+    $file
+}
