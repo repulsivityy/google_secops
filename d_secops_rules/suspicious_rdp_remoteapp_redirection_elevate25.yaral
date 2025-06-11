@@ -1,0 +1,76 @@
+/*
+ * Copyright 2025 Google LLC
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     https://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+rule suspicious_rdp_remoteapp_redirection_elevate25 {
+  meta {
+    author = "Cline (AI Detection Engineer)"
+    description = "Detects .rdp files configured with RemoteApp and resource redirection settings commonly used in espionage campaigns like those by UNC5837. These settings can enable file theft and clipboard data capture."
+    rule_id = "mr_1e8a7215-4f9a-4b0d-828c-50020a730f8b"
+    rule_name = "Suspicious RDP File Configuration with RemoteApp and Redirection"
+    severity = "High"
+    priority = "High"
+    platform = "Windows"
+    data_source = "Email Security Gateway, File Monitoring, EDR"
+    type = "alert"
+    tactic = "TA0001, TA0009" // Initial Access, Collection
+    technique = "T1566.001, T1119, T1005" // Phishing: Spearphishing Attachment, Automated Collection, Data from Local System
+    reference = "GTI Report: report--25-10015981 (Windows Remote Desktop Protocol Remote to Rogue)"
+  }
+
+  events {
+    (
+      $e.metadata.event_type = "EMAIL_ATTACHMENT" and
+      re.regex($e.target.file.full_path, `\.rdp$`) nocase and
+      $file_content = $e.target.file.full_text
+    ) or (
+      $e.metadata.event_type = "FILE_CREATION" and
+      re.regex($e.target.file.full_path, `\.rdp$`) nocase and
+      $file_content = $e.target.file.full_text
+    ) or (
+      re.regex($e.principal.file.full_path, `\.rdp$`) nocase and
+      $file_content = $e.principal.file.full_text
+    )
+
+    re.regex($file_content, `remoteapplicationmode:i:1`) nocase
+    re.regex($file_content, `drivestoredirect:s:`) nocase
+    re.regex($file_content, `redirectclipboard:i:1`) nocase
+    (
+      re.regex($file_content, `remoteapplicationprogram:s:`) nocase or
+      re.regex($file_content, `remoteapplicationname:s:`) nocase
+    )
+  }
+
+  outcome {
+    $risk_score = 85
+    $principal_hostname = array_distinct($e.principal.hostname)
+    $principal_user_userid = array_distinct($e.principal.user.userid)
+    $target_file_path = array_distinct($e.target.file.full_path)
+    $target_file_sha256 = array_distinct($e.target.file.sha256)
+    $about_file_path = array_distinct($e.about.file.full_path)
+    $about_file_sha256 = array_distinct($e.about.file.sha256)
+    $event_type = array_distinct($e.metadata.event_type)
+    $description = array_distinct($e.metadata.description)
+    $product_name = array_distinct($e.metadata.product_name)
+    $rdp_full_address = array_distinct(re.capture($file_content, `full address:s:(.*)`))
+    $rdp_alternate_full_address = array_distinct(re.capture($file_content, `alternate full address:s:(.*)`))
+    $remote_app_name = array_distinct(re.capture($file_content, `remoteapplicationname:s:(.*)`))
+    $remote_app_program = array_distinct(re.capture($file_content, `remoteapplicationprogram:s:(.*)`))
+    $remote_app_cmdline = array_distinct(re.capture($file_content, `remoteapplicationcmdline:s:(.*)`))
+  }
+
+  condition {
+    $e
+  }
+}
