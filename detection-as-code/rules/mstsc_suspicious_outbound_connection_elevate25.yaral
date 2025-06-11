@@ -1,0 +1,55 @@
+rule mstsc_suspicious_outbound_connection_elevate25 {
+  meta:
+    author = "Google Cloud Security"
+    description = "Detects mstsc.exe making outbound network connections. This could be indicative of 'Rogue RDP' techniques where malicious .rdp files connect to attacker-controlled servers. Investigate the destination and any associated .rdp files, especially for suspicious signing (e.g., Let's Encrypt certs for the C2 domain) as seen in the UNC5837 campaign."
+    rule_id = "mr_b2c1d0e9-f8e7-d6c5-b4a3-928170fdecba" 
+    rule_name = "MSTSC Making Suspicious Outbound Connection"
+    tactic = "TA0011" // Command and Control
+    technique = "T1021.001" // Remote Desktop Protocol
+    sub_technique = ""
+    type = "hunt"
+    data_source = "microsoft sysmon, EDR, network monitoring tools"
+    severity = "Medium"
+    priority = "Medium"
+    reference = "https://www.virustotal.com/gui/collection/report--25-10015981"
+
+  events:
+    // Event for mstsc.exe network connection
+    $net.metadata.event_type = "NETWORK_CONNECTION"
+    $net.principal.process.file.full_path = /mstsc\.exe$/
+    // Filter out connections to private IP space to reduce noise from legitimate internal RDP.
+    // Adjust as needed if internal RDP abuse is also a concern.
+    (
+        $net.target.ip != /^10\./ or
+        $net.target.ip != /^172\.(1[6-9]|2[0-9]|3[0-1])\./ or
+        $net.target.ip != /^192\.168\./ or
+        $net.target.ip != /^127\./ or
+        $net.target.ip != /^::1/ or 
+        $net.target.ip != /^fe80:/
+    )
+    $hostname = $net.principal.hostname
+    $destination_ip = $net.target.ip
+    $destination_domain = $net.target.domain.name
+
+  match:
+    $hostname, $destination_ip over 1h // Matching over a longer window for network connections
+
+  outcome:
+    $risk_score = 65
+    $event_count = count_distinct($net.metadata.id)
+    $principal_hostname = array_distinct($net.principal.hostname)
+    $principal_user_userid = array_distinct($net.principal.user.userid)
+    $principal_process_command_line = array_distinct($net.principal.process.command_line)
+    $principal_process_pid = array_distinct($net.principal.process.pid)
+    $principal_process_sha256 = array_distinct($net.principal.process.file.sha256)
+    $target_ip = array_distinct($net.target.ip)
+    $target_port = array_distinct($net.target.port)
+    $target_domain = array_distinct($net.target.domain.name)
+    $network_protocol = array_distinct($net.network.ip_protocol)
+    // Adding MITRE ATT&CK details to outcome
+    $mitre_tactic = array_distinct("TA0011 - Command and Control")
+    $mitre_technique = array_distinct("T1021.001 - Remote Desktop Protocol")
+
+  condition:
+    $net
+}

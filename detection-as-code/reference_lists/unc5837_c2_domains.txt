@@ -1,0 +1,2 @@
+eu-southeast-1-aws.govtr.cloud
+eu-north-1-aws.ua-gov.cloud
