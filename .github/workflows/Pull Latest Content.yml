@@ -15,6 +15,10 @@ permissions:
   # 'id-token: write' is required to allow GitHub's OIDC provider to create a JSON Web Token for every run
   id-token: write
 
+defaults:  
+  run:
+    working-directory: ./detection-as-code
+  
 jobs:
   pull-latest-content:
     runs-on: ubuntu-latest
@@ -63,7 +67,7 @@ jobs:
         run: python -m content_manager rules get
 
       - name: Pull latest version of all data tables from Google SecOps
-        run: python -m content_manager data-tables get
+        run: python -m content_manager data-tables get || (grep -q 'Precondition check failed' error.log && echo 'Skipping step due to precondition failure')
 
       - name: Pull latest version of all reference lists from Google SecOps
         run: python -m content_manager reference-lists get

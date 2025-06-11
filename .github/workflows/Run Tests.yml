@@ -18,9 +18,9 @@ permissions:
   # 'id-token: write' is required to allow GitHub's OIDC provider to create a JSON Web Token for every run
   id-token: write
 
-#defaults:  
-#  run:
-#    working-directory: ./detection-as-code
+defaults:  
+  run:
+    working-directory: ./detection-as-code
 
 jobs:
   run-unit-tests:
