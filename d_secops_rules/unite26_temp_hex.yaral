@@ -1,0 +1,33 @@
+rule China_Nexus_TempHex_Campaign_Detection {
+  meta:
+    author = "Google Threat Intelligence Agent"
+    description = "Detects TTPs used in the China-Nexus Temp.Hex campaign [collection:campaign--af914b6e-6017-5b3e-af6a-5813c1e8d101], focusing on spearphishing delivery, DLL side-loading, and registry persistence."
+    severity = "High"
+    technique = "T1566, T1574.002, T1547.001"
+
+  events:
+    // 1. Spearphishing via Cloud Storage Delivery
+    // Detects creation of archive files in common download/temp locations
+    ($e.metadata.event_type = "FILE_CREATION" and
+     $e.target.file.full_path = /\\(Downloads|AppData\\Local\\Temp)\\.*?\.(zip|rar|7z|iso|img)$/i)
+
+    or
+
+    // 2. DLL Side-Loading via Legitimate Binaries
+    // Detects loading of DLLs from user-writable directories by executables in those same paths
+    ($e.metadata.event_type = "IMAGE_LOAD" and
+     $e.principal.process.file.full_path = /C:\\(ProgramData|Users\\.*?\\AppData\\(Local|Roaming))\\.*?\.exe$/i and
+     $e.target.file.full_path = /C:\\(ProgramData|Users\\.*?\\AppData\\(Local|Roaming))\\.*?\.dll$/i)
+
+    or
+
+    // 3. Persistence via Registry Run Keys
+    // Detects modifications to 'Run' keys pointing to AppData/ProgramData or using specific campaign names
+    ($e.metadata.event_type = "REGISTRY_SET_VALUE" and
+     $e.target.registry.registry_key = /\\Software\\Microsoft\\Windows\\CurrentVersion\\Run/i and
+     ($e.target.registry.registry_value_data = /\\(AppData|ProgramData)\\.*?\.exe/i or
+      $e.target.registry.registry_value_name = /Facesdk|EpsonPrinter/i))
+
+  condition:
+    $e
+}
